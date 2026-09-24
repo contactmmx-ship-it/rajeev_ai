@@ -171,30 +171,44 @@ Browser: orb, captions, auth gate, business/agents panel
 /api/realtime reads memory + open items + methodology briefing back in
 ```
 
-## FKAIOS Brain bridge (optional, read-only)
+## FKAIOS Brain bridge
 
 Rajeev AI has its own Supabase project and memory (V2 above) — that is
-unchanged and stays the primary store. `lib/fkaiosBrain.ts` additionally
-pulls what the separate FKAIOS Brain (the `fkaios-aura-blueprint1` repo's
-`founder-objective` edge function, `nrlsqshkjuuwiovthrnb`) already knows
-about the person's company, so Rajeev doesn't start cold on something
-FKAIOS has already worked on. It is called once per `getOrCreatePerson()`
-(wired in at the end of that function in `lib/memory.ts`) and its result is
-appended to `contextForPrompt` alongside the existing summary/open-items
-context.
+unchanged and stays the primary store. `lib/fkaiosBrain.ts` bridges to the
+separate FKAIOS Brain (the `fkaios-aura-blueprint1` repo's
+`founder-objective` edge function, `nrlsqshkjuuwiovthrnb`) two ways:
 
-Three env vars gate it (`FKAIOS_FOUNDER_OBJECTIVE_URL`,
+- `getFkaiosBrainContext()` — pulls what FKAIOS already knows about the
+  person's company, so Rajeev doesn't start cold on something FKAIOS has
+  already worked on. Called once per `getOrCreatePerson()`; its result is
+  appended to `contextForPrompt`.
+- `submitFkaiosObjective()` — added for FKAIOS's master spec requirement
+  #28 ("Rajeev AI can create/modify objectives, routed into the SAME
+  FKAIOS objective system, never a second one"). Called for every action
+  item the end-of-call extraction pass produces (`endConversationAndExtract`
+  in `lib/memory.ts`), right alongside the existing `action_items` insert —
+  so a commitment Rajeev makes by voice becomes a real FKAIOS objective
+  (subject to FKAIOS's own risk-assessment/approval gate), not only a row
+  in this app's local table.
+
+Three env vars gate both calls (`FKAIOS_FOUNDER_OBJECTIVE_URL`,
 `FKAIOS_SUPABASE_ANON_KEY`, `FKAIOS_SERVICE_TOKEN` — see `.env.example`);
-any missing one degrades to a no-op, same pattern as every other layer in
-this app. On the FKAIOS side, the service token unlocks the `brain_context`
-read action only — this app can never submit or rerun an FKAIOS objective
-through it, and the platform's own JWT check on that endpoint is untouched
-(the anon key satisfies it; the service token is a second, separate header).
+any missing one degrades every FKAIOS call to a silent no-op, same pattern
+as every other layer in this app — neither function ever throws. On the
+FKAIOS side, the service token unlocks exactly two actions: `brain_context`
+(read) and `submit_from_avatar` (create an objective, through the identical
+risk-assessment/approval pipeline a human-submitted one goes through). It
+can still never rerun an FKAIOS objective or read anything beyond
+`brain_context`'s scope; the platform's own JWT check on that endpoint is
+untouched (the anon key satisfies it — the service token is a second,
+separate header).
 
 **Not yet live**: as of this writing FKAIOS's own deploy of the updated
 `founder-objective` function and the `FKAIOS_SERVICE_TOKEN` secret are both
-still pending on the FKAIOS side — this bridge is written and wired but has
-not been exercised against a live FKAIOS Brain.
+still pending on the FKAIOS side — this bridge is written, typechecked, and
+`next build`-verified, but has not been exercised against a live FKAIOS
+Brain (deploying `founder-objective` requires explicit human action on the
+FKAIOS side — see that repo's own acceptance matrix, requirement #28).
 
 ## Setup files
 

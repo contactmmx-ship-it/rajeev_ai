@@ -7,7 +7,7 @@ import {
   computeTier,
 } from "./methodology";
 import { maybeProposeFromAssessment } from "./agents";
-import { getFkaiosBrainContext } from "./fkaiosBrain";
+import { getFkaiosBrainContext, submitFkaiosObjective } from "./fkaiosBrain";
 
 export type TranscriptTurn = { role: "user" | "assistant"; text: string; ts: number };
 
@@ -283,6 +283,7 @@ export async function endConversationAndExtract(opts: {
   saved: boolean;
   factsExtracted: number;
   actionItemsExtracted: number;
+  fkaiosObjectivesSubmitted: number;
   assessmentRecorded: boolean;
   agentActionProposed: boolean;
   reason?: string;
@@ -292,6 +293,7 @@ export async function endConversationAndExtract(opts: {
     saved: false,
     factsExtracted: 0,
     actionItemsExtracted: 0,
+    fkaiosObjectivesSubmitted: 0,
     assessmentRecorded: false,
     agentActionProposed: false,
   };
@@ -377,6 +379,7 @@ ${transcriptText}
     // hint was given, otherwise create one. Simple exact-name match —
     // fuzzy project matching is a real gap, not a hidden one.
     let actionItemsExtracted = 0;
+    let fkaiosObjectivesSubmitted = 0;
     for (const item of result.action_items) {
       let projectId: string | null = null;
       if (item.project_hint) {
@@ -407,6 +410,15 @@ ${transcriptText}
         description: item.description,
       });
       actionItemsExtracted++;
+
+      // Requirement #28: this action item is a real business commitment,
+      // not just a local reminder — feed it into FKAIOS's actual objective
+      // system too, not only this app's own `action_items` table. Fire-
+      // and-forget: FKAIOS being unreachable, unconfigured, or the item
+      // being too short to qualify as an objective must never fail this
+      // call's own extraction (submitFkaiosObjective never throws).
+      const fkaiosSubmission = await submitFkaiosObjective(item.description);
+      if (fkaiosSubmission.ok) fkaiosObjectivesSubmitted++;
     }
 
     // Business assessment + the one live agent trigger it can produce.
@@ -442,6 +454,7 @@ ${transcriptText}
       saved: true,
       factsExtracted: result.facts.length,
       actionItemsExtracted,
+      fkaiosObjectivesSubmitted,
       assessmentRecorded,
       agentActionProposed,
     };
