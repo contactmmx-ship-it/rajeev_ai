@@ -210,3 +210,34 @@ theme actually rendering correctly across browsers for `color-mix()`
 writing, but genuinely untested here). All of the code paths for these
 are written and internally consistent; none of them have been *run*.
 `npm run dev` with real keys is where that gap closes.
+
+## Rajeev AI inside every project (shared widget)
+
+Rajeev wants Rajeev AI available inside every Franchise Kart project. Rather
+than copying this code into each app, this server is the one shared Rajeev AI
+service, and each project adds one line:
+
+```html
+<script src="https://YOUR-RAJEEV-AI-HOST/rajeev-widget.js" data-project="ebill2tally" defer></script>
+```
+
+- `lib/embedProjects.ts` lists the projects allowed to use the widget, each
+  with its live website address and a short brief (for example, the SYROS
+  brief forbids any medicine, dose or diagnosis advice). A website that is not
+  listed for that project is refused.
+- `app/api/embed/session` gives the page a short-lived voice key. The real
+  `OPENAI_API_KEY` never leaves the server. Rajeev AI gets no access to any
+  project's database; a page can share what is on screen with
+  `window.RajeevAI.setContext("...")` (max 4000 characters).
+- `public/embed-demo.html` is a test page for the widget.
+
+Settings (all server-side):
+
+| Setting | What it does |
+| --- | --- |
+| `OPENAI_API_KEY` | Required for voice. |
+| `RAJEEV_EMBED_ENABLED` | Must be `true` or the widget says "switched off". This is the cost switch. |
+| `RAJEEV_EMBED_MAX_PER_HOUR` | Sessions per visitor per hour, per project (default 20). |
+| `RAJEEV_EMBED_EXTRA_ORIGINS` | Extra allowed websites, e.g. `ebill2tally=http://localhost:3000;dr-teeth=https://preview.vercel.app` |
+
+Every voice session is billed by OpenAI. Run `npm test` for the widget tests.
